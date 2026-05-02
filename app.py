@@ -105,6 +105,49 @@ INSTRUCTIONS:
 6. Do NOT include any text outside JSON.
 """
 
+# ADDED: Vision prompt for handwriting image analysis mode.
+VISION_PROMPT_TEMPLATE = """SYSTEM ROLE:
+You are an expert in Urdu handwriting analysis and learning disorders such as dyslexia.
+
+TASK:
+Analyze the uploaded handwriting image and identify possible indicators of dyslexia.
+
+INSTRUCTIONS:
+1. Carefully examine the handwriting for:
+   - Reversed or incorrectly formed Urdu letters (e.g., ب ت ث)
+   - Inconsistent letter shapes
+   - Irregular spacing between letters and words
+   - Misalignment (text not following a straight baseline)
+   - Inconsistent letter sizes
+   - Unusual or broken stroke formation
+
+2. Do NOT assume dyslexia from a single issue.
+   Only flag patterns if they appear repeatedly.
+
+3. Classify risk into:
+   - LOW
+   - MODERATE
+   - HIGH
+
+4. Return STRICT JSON ONLY:
+
+{
+  "risk_level": "LOW | MODERATE | HIGH",
+  "detected_patterns": [
+    "pattern 1",
+    "pattern 2"
+  ],
+  "explanation": "Simple explanation",
+  "suggestions": [
+    "suggestion 1"
+  ]
+}
+
+5. Keep explanation simple and non-medical.
+
+6. Do NOT include any text outside JSON.
+"""
+
 
 def extract_json_safely(text: str) -> Dict[str, Any]:
     """Extract and parse JSON safely, even if the model wraps it accidentally."""
@@ -169,6 +212,29 @@ def call_gemini(user_input: str) -> Dict[str, Any]:
     parsed = extract_json_safely(response.text)
     return normalize_result(parsed)
 
+# ADDED: New Gemini Vision function for handwriting image analysis.
+def call_gemini_vision(image_bytes: bytes) -> Dict[str, Any]:
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY is missing. Add it to your environment or .env file.")
+
+    client = genai.Client(api_key=api_key)
+
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=[
+            types.Part.from_text(text=VISION_PROMPT_TEMPLATE),
+            types.Part.from_bytes(data=image_bytes, mime_type="image/png"),
+        ],
+        config=types.GenerateContentConfig(
+            temperature=0.3,
+            response_mime_type="application/json",
+        ),
+    )
+
+    parsed = extract_json_safely(response.text)
+    return normalize_result(parsed)
+
 
 def render_risk_level(risk_level: str) -> None:
     css_class = {
@@ -194,20 +260,50 @@ It is designed for **early screening support** only, not diagnosis.
 
     st.info("⚠️ This is NOT a medical diagnosis tool. Please consult a qualified professional.")
 
-    user_input = st.text_area(
-        "✍️ Enter Urdu or English writing sample",
-        height=200,
-        placeholder="Urdu: مجھے اسکول جانا پسند ہے...\n\nEnglish: I like to go to school...",
+    # ADDED: Input mode toggle for text vs handwriting image analysis.
+    mode = st.radio(
+        "Choose analysis mode",
+        ["Text Analysis", "Handwriting Image Analysis"],
+        horizontal=True,
     )
 
+    user_input = ""
+    uploaded_file = None
+
+    if mode == "Text Analysis":
+        user_input = st.text_area(
+            "✍️ Enter Urdu or English writing sample",
+            height=200,
+            placeholder="Urdu: مجھے اسکول جانا پسند ہے...\n\nEnglish: I like to go to school...",
+        )
+    else:
+        # ADDED: Image upload UI for handwriting analysis.
+        uploaded_file = st.file_uploader(
+            "📸 Upload handwritten Urdu sample image",
+            type=["jpg", "jpeg", "png"],
+        )
+        if uploaded_file is not None:
+            st.image(uploaded_file, caption="Uploaded handwriting sample", use_container_width=True)
+
     if st.button("Analyze Writing"):
-        if not user_input.strip():
-            st.warning("Please enter some text before analysis.")
-            return
+        # ADDED: Mode-specific input validation.
+        if mode == "Text Analysis":
+            if not user_input.strip():
+                st.warning("Please enter some text before analysis.")
+                return
+        else:
+            if uploaded_file is None:
+                st.warning("Please upload an image before analysis.")
+                return
 
         with st.spinner("Analyzing writing patterns with Gemini..."):
             try:
-                result = call_gemini(user_input)
+                # ADDED: Mode-specific Gemini call routing.
+                if mode == "Text Analysis":
+                    result = call_gemini(user_input)
+                else:
+                    image_bytes = uploaded_file.read()
+                    result = call_gemini_vision(image_bytes)
             except json.JSONDecodeError:
                 st.error("Model response format was invalid. Please try again.")
                 return
