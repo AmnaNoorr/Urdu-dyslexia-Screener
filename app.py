@@ -1,5 +1,5 @@
 """
-NastaliqScan â€” AI Dyslexia Screener for Urdu & English
+NastaliqScan — AI Dyslexia Screener for Urdu & English
 Premium UI integration (backend logic unchanged)
 """
 
@@ -19,174 +19,343 @@ from google.genai import types
 load_dotenv()
 
 st.set_page_config(
-    page_title="NastaliqScan â€” AI Dyslexia Screener",
-    page_icon="ðŸ”¬",
+    page_title="NastaliqScan — AI Dyslexia Screener",
+    page_icon="🔬",
     layout="centered",
     initial_sidebar_state="collapsed",
 )
 
 CSS = """
 <style>
-@import url(''https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;600;700&family=Manrope:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,500;8..60,700&display=swap'');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;600;700&family=Manrope:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,500;8..60,700&display=swap');
 
 :root{
   --bg:#FAF8F3;
   --surface:#FFFFFF;
   --surface-soft:#F7F5F0;
   --border:#E8E4DC;
+  --border-strong:#C9C4BB;
 
   --navy-900:#0B1220;
+  --navy-800:#0F172A;
+  --navy-700:#1E2A3B;
+
+  --green-600:#059669;
+  --green-100:#ECFDF5;
+  --yellow-600:#D97706;
+  --yellow-100:#FFFBEB;
+  --red-600:#DC2626;
+  --red-100:#FEF2F2;
 
   --amber-500:#D97706;
   --amber-400:#F59E0B;
   --amber-100:#FEF3C7;
+  --gold-600:#B45309;
 
   --text-primary:#1E1B16;
-  --text-secondary:#5f5a55;
-  --text-muted:#9a948d;
+  --text-secondary:#6B6560;
+  --text-muted:#B8B3AC;
+  --text-inverse:#FFFFFF;
 
+  --radius-sm:10px;
+  --radius-md:14px;
+  --radius-lg:22px;
+
+  --shadow-sm:0 1px 4px rgba(0,0,0,0.06);
+  --shadow-md:0 6px 18px rgba(0,0,0,0.08);
+  --shadow-lg:0 18px 50px rgba(0,0,0,0.12);
+
+  --font-ui:'Manrope',system-ui,sans-serif;
+  --font-display:'Source Serif 4',Georgia,serif;
+  --font-urdu:'Noto Nastaliq Urdu',serif;
   --ok:#059669;
   --bad:#dc2626;
-
-  --font-ui:''Manrope'',system-ui,sans-serif;
-  --font-display:''Source Serif 4'',Georgia,serif;
-  --font-urdu:''Noto Nastaliq Urdu'',serif;
+  --text-soft:#475569;
 }
 
-/* ===================== GLOBAL FIX (IMPORTANT) ===================== */
-html, body, .stApp {
-  background: var(--bg) !important;
-  color: var(--text-primary) !important;
+*{box-sizing:border-box;}
+html,body{
+  font-family:var(--font-ui);
+  background:var(--bg);
+  color:var(--text-primary);
 }
+#MainMenu,footer,header{visibility:hidden;}
+.block-container{padding:0 !important; max-width:100% !important;}
 
-* { box-sizing: border-box; }
-
-#MainMenu, footer, header { visibility: hidden; }
-
-/* FORCE STREAMLIT TEXT VISIBILITY */
-.stMarkdown, .stText, p, span, div {
-  color: var(--text-primary);
-}
-
-/* ===================== HERO ===================== */
+.ns-shell{max-width:760px;margin:0 auto;padding:2.5rem 1.1rem 4rem;}
 .ns-hero{
   background:var(--navy-900);
   border-radius:22px;
-  padding:2rem 1.3rem;
-  box-shadow:0 6px 18px rgba(0,0,0,.2);
+  border:1px solid rgba(255,255,255,.08);
+  padding:2rem 1.3rem 1.6rem;
+  box-shadow:var(--shadow-md);
 }
-
+.ns-eyebrow{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:#c7d2fe;background:rgba(199,210,254,.08);border:1px solid rgba(199,210,254,.33);
+  border-radius:999px;padding:4px 10px;margin-bottom:.9rem;
+}
 .ns-title{
-  font-family:var(--font-display);
-  font-size:2.4rem;
-  color:#fff;
+  font-family:var(--font-display);font-size:clamp(2rem,4.6vw,3rem);line-height:1.04;
+  color:var(--text-inverse);letter-spacing:-.02em;
 }
-
-.ns-title em{ color:var(--amber-400); }
-
+.ns-title em{color:var(--amber-400);font-style:italic;}
 .ns-urdu{
-  font-family:var(--font-urdu);
-  direction:rtl;
-  text-align:center;
-  color:rgba(255,255,255,.8);
+  font-family:var(--font-urdu);direction:rtl;text-align:center;
+  color:rgba(255,255,255,.75);margin-top:.45rem;font-size:1.02rem;
+}
+.ns-sub{
+  margin-top:.85rem;color:rgba(255,255,255,.83);line-height:1.62;font-size:.93rem;
+}
+.ns-pills{margin-top:.9rem;display:flex;flex-wrap:wrap;gap:7px;}
+.ns-pill{
+  font-size:.72rem;color:rgba(255,255,255,.9);
+  border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.07);
+  border-radius:999px;padding:3px 10px;
+}
+.ns-disclaimer{
+  margin-top:.9rem;border:1px solid var(--amber-400);background:var(--amber-100);
+  color:var(--gold-600);border-radius:var(--radius-sm);padding:.68rem .9rem;
+  font-size:.8rem;line-height:1.5;
 }
 
-/* ===================== MODE CARDS (FIXED) ===================== */
+.ns-label{
+  margin-top:1.35rem;margin-bottom:.55rem;
+  font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);
+}
+.ns-mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:.9rem;}
 .ns-mode-card{
-  border:1px solid var(--border);
-  background:var(--surface);
-  border-radius:14px;
-  padding:1rem;
-  color:var(--text-primary) !important;
+  border:1px solid var(--border);background:var(--surface);border-radius:var(--radius-md);
+  padding:.9rem .95rem;box-shadow:var(--shadow-sm);
+  color: var(--text-primary) !important;
 }
-
-.ns-mode-card *{
-  color:var(--text-primary) !important;
-}
-
 .ns-mode-card.active{
-  border-color:var(--amber-500);
-  background:#fffaf0;
+  border-color: var(--amber-500);
+  background: #fffdf7;
+  box-shadow: var(--shadow-md);
 }
-
-.ns-mode-title{
-  font-weight:800;
-  font-size:.95rem;
-  color:var(--text-primary) !important;
+.ns-mode-card:hover {
+  transform: translateY(-2px);
+  border-color: #93c5fd;
+  transition: all .2s ease;
 }
-
-.ns-mode-desc{
-  font-size:.82rem;
-  color:var(--text-secondary) !important;
+.ns-mode-card .t {
+  font-weight: 800;
+  font-size: .92rem;
+  color: var(--navy-900) !important;
 }
+.ns-mode-card .d {
+  margin-top: .25rem;
+  font-size: .8rem;
+  color: var(--text-secondary) !important;
+  line-height: 1.45;
+}
+.ns-mode-title{font-size:.89rem;font-weight:700;color:var(--text-primary);}
+.ns-mode-desc{margin-top:.2rem;font-size:.77rem;color:var(--text-secondary);line-height:1.45;}
 
-/* ===================== PANELS ===================== */
+div[data-testid="stRadio"] > label{display:none !important;}
+div[data-testid="stRadio"] > div{
+  display:flex !important; gap:8px !important; margin-bottom:10px !important;
+}
+div[data-testid="stRadio"] > div > label{
+  background:var(--surface) !important;border:1px solid var(--border) !important;border-radius:10px !important;
+  padding:8px 10px !important; flex:1 !important; text-align:center !important;
+}
+div[data-testid="stRadio"] > div > label:has(input:checked){
+  border-color:var(--amber-500) !important; background:#fff8ef !important;
+}
+div[data-testid="stRadio"] > div > label p{font-size:.8rem !important; font-weight:600 !important;}
+
 .ns-panel{
-  background:var(--surface);
-  border:1px solid var(--border);
-  border-radius:16px;
+  border:1px solid var(--border);border-radius:var(--radius-lg);
+  background:var(--surface);box-shadow:var(--shadow-sm);overflow:hidden;
+}
+.ns-panel-head{
+  padding:.85rem 1rem;border-bottom:1px solid var(--border);
+  display:flex;justify-content:space-between;gap:8px;align-items:center;
+}
+.ns-panel-title{font-size:.9rem;font-weight:700;color:var(--text-primary);display:inline-flex;align-items:center;gap:7px;}
+.ns-dot{width:8px;height:8px;border-radius:999px;background:var(--amber-500);}
+.ns-panel-meta{font-size:.73rem;color:var(--text-muted);}
+.ns-panel-body{padding:.95rem 1rem;}
+.ns-panel-foot{
+  padding:.65rem 1rem .95rem;display:flex;justify-content:space-between;align-items:center;gap:8px;
+}
+.ns-count{font-size:.74rem;color:var(--text-muted);}
+.ns-count.active{color:var(--amber-500);font-weight:700;}
+.ns-urdu-badge{
+  font-size:.7rem;font-weight:700;color:var(--gold-600);
+  background:var(--amber-100);border:1px solid #f4d4a0;border-radius:999px;padding:3px 8px;
 }
 
-.ns-panel-body, .ns-panel-head, .ns-panel-foot {
-  color: var(--text-primary);
-}
-
-/* ===================== TEXT AREA ===================== */
 .stTextArea textarea{
-  background:white !important;
-  color:var(--text-primary) !important;
-  border:1px solid var(--border) !important;
+  font-family:var(--font-ui) !important;background:var(--surface) !important;color:var(--text-primary) !important;
+  border:1px solid var(--border) !important;border-radius:10px !important;padding:14px !important;line-height:1.65 !important;
+}
+.stTextArea textarea:focus{
+  border-color:var(--amber-500) !important;box-shadow:0 0 0 3px rgba(217,119,6,.14) !important;
+}
+.stTextArea textarea::placeholder{color:var(--text-muted) !important;}
+
+[data-testid="stSelectbox"] > div > div{
+  border:1px solid var(--border) !important;border-radius:10px !important;background:var(--surface) !important;
+}
+[data-testid="stFileUploader"]{
+  border:1px dashed var(--border-strong) !important;border-radius:12px !important;background:var(--surface-soft) !important;
+}
+[data-testid="stImage"] img{border-radius:12px !important;border:1px solid var(--border) !important;}
+
+.ns-ghost .stButton > button{
+  background:#fff !important;border:1px solid var(--border) !important;color:var(--text-secondary) !important;
+  width:auto !important;padding:6px 12px !important;font-size:.76rem !important;font-weight:600 !important;
+}
+.ns-ghost .stButton > button:hover{
+  border-color:var(--amber-500) !important;color:var(--amber-500) !important;
 }
 
-/* ===================== FIX PATTERNS VISIBILITY ===================== */
-.ns-row{
-  display:flex;
-  gap:10px;
-  padding:.7rem 0;
-  border-bottom:1px solid #eee;
-  color:var(--text-primary) !important;
-}
-
-.ns-row div{
-  color:var(--text-primary) !important;
-}
-
-.ns-idx{
-  width:22px;
-  height:22px;
-  border-radius:6px;
-  background:#eee;
-  font-weight:700;
-}
-
-/* ===================== INSIGHT FIX ===================== */
-.ns-insight{
-  font-size:1rem;
-  line-height:1.7;
-  color:var(--text-primary) !important;
-}
-
-/* ===================== URDU ===================== */
-.urdu-block{
-  font-family:var(--font-urdu);
-  direction:rtl;
-  text-align:right;
-  color:var(--text-primary) !important;
-  line-height:2;
-}
-
-/* ===================== CTA ===================== */
+.ns-cta{margin-top:1rem;}
 .ns-cta .stButton > button{
-  width:100%;
-  background:var(--amber-500) !important;
-  color:white !important;
-  border-radius:12px;
-  font-weight:700;
+  width:100% !important;background:var(--amber-500) !important;color:#fff !important;border:none !important;
+  border-radius:12px !important;padding:13px 16px !important;font-size:.93rem !important;font-weight:700 !important;
+  box-shadow:var(--shadow-md) !important;
+}
+.ns-cta .stButton > button:hover{
+  background:var(--amber-400) !important; transform:translateY(-1px) !important; box-shadow:var(--shadow-lg) !important;
 }
 
-/* ===================== SMALL FIXES ===================== */
-.ns-count{
-  color:var(--text-muted);
+.ns-report-label{
+  margin-top:2.1rem;margin-bottom:.8rem;font-size:.7rem;font-weight:800;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--text-muted);
+}
+.ns-step{margin-bottom:1rem;}
+.ns-risk{
+  border-radius:16px;padding:1.2rem 1.2rem;border:1px solid;
+  display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;
+}
+.ns-risk.LOW{background:var(--green-100);border-color:#86efac;}
+.ns-risk.MODERATE{background:var(--yellow-100);border-color:#fde68a;}
+.ns-risk.HIGH{background:var(--red-100);border-color:#fca5a5;}
+.ns-risk-kicker{font-size:.67rem;font-weight:800;letter-spacing:.11em;text-transform:uppercase;}
+.ns-risk-kicker.LOW{color:var(--green-600);}
+.ns-risk-kicker.MODERATE{color:var(--yellow-600);}
+.ns-risk-kicker.HIGH{color:var(--red-600);}
+.ns-risk-title{
+  font-family:var(--font-display);font-size:clamp(1.65rem,3.6vw,2.3rem);
+  line-height:1.1;margin-top:.18rem;
+}
+.ns-risk-sub{font-size:.82rem;color:var(--text-secondary);margin-top:.35rem;line-height:1.45;}
+
+.ns-metric{min-width:125px;display:flex;flex-direction:column;align-items:flex-end;gap:6px;}
+.ns-meter{width:125px;height:10px;border-radius:999px;background:rgba(15,23,42,.12);overflow:hidden;}
+.ns-fill{height:100%;border-radius:999px;}
+.ns-fill.LOW{width:24%;background:linear-gradient(90deg,#10b981,#059669);}
+.ns-fill.MODERATE{width:58%;background:linear-gradient(90deg,#f59e0b,#d97706);}
+.ns-fill.HIGH{width:92%;background:linear-gradient(90deg,#ef4444,#dc2626);}
+.ns-conf{
+  font-size:.66rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+  padding:3px 9px;border-radius:999px;border:1px solid;
+}
+.ns-conf.LOW{background:#fee2e2;border-color:#fca5a5;color:#dc2626;}
+.ns-conf.MEDIUM{background:#fef3c7;border-color:#fcd34d;color:#b45309;}
+.ns-conf.HIGH{background:#d1fae5;border-color:#86efac;color:#059669;}
+
+.ns-card{border:1px solid var(--border);border-radius:14px;background:var(--surface);box-shadow:var(--shadow-sm);}
+.ns-card-head{
+  padding:.78rem .95rem;border-bottom:1px solid var(--border);
+  font-size:.72rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);
+}
+.ns-card-body{padding:.95rem;}
+
+.ns-insight {
+  font-size: .96rem;
+  color: #1f2937 !important;
+  line-height: 1.75;
+  font-weight: 450;
+}
+.ns-insight.urdu{
+  font-family:var(--font-urdu);direction:rtl;text-align:right;line-height:2.1;color:var(--text-primary);font-size:1.05rem;
+}
+
+.ns-highlight{
+  border:1px solid var(--border);border-radius:10px;background:var(--surface-soft);
+  padding:.8rem .88rem;margin-bottom:.65rem;
+}
+.ns-highlight-lbl{
+  font-size:.66rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:.5rem;
+}
+.ns-text-display{
+  font-family:var(--font-urdu);direction:rtl;text-align:right;line-height:2.2;font-size:1.04rem;color:var(--text-primary);
+}
+.ns-hl{
+  background:var(--amber-100);border-bottom:2px solid var(--amber-500);border-radius:3px;padding:0 3px;position:relative;
+}
+.ns-hl .ns-tt{
+  display:none;position:absolute;left:50%;transform:translateX(-50%);bottom:calc(100% + 7px);
+  background:var(--navy-800);color:#fff;font-size:.71rem;white-space:nowrap;border-radius:6px;padding:5px 9px;z-index:10;
+  font-family:var(--font-ui);direction:ltr;
+}
+.ns-hl:hover .ns-tt{display:block;}
+
+.ns-corr-list{margin-top:.58rem;display:flex;flex-direction:column;gap:4px;direction:rtl;}
+.ns-corr-pair{display:flex;align-items:center;gap:8px;font-size:.82rem;}
+.ns-corr-wrong {
+  color: var(--bad);
+  text-decoration: line-through;
+  font-family: var(--font-urdu);
+}
+.ns-corr-arrow{color:var(--text-muted);font-size:.74rem;}
+.ns-corr-right {
+  color: var(--ok);
+  font-weight: 800;
+  font-family: var(--font-urdu);
+}
+
+.ns-row{
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: .9rem;
+  color: var(--text-primary) !important;
+  line-height: 1.6;
+  padding: .68rem 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+.ns-row:last-child{border-bottom:none;}
+.ns-row div:last-child {
+  color: var(--text-primary) !important;
+}
+.ns-idx{
+  width:20px;height:20px;border-radius:6px;background:#ece8e2;color:#4b5563;font-size:.68rem;font-weight:800;
+  display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;
+}
+.urdu-block{font-family:var(--font-urdu);direction:rtl;text-align:right;line-height:2;font-size:.96rem;color:var(--text-primary);}
+
+.ns-suggest{
+  border:1px solid #edd8b8;background:#fff9ef;border-radius:14px;
+}
+.ns-sug-row{
+  display:flex;align-items:flex-start;gap:10px;padding:.8rem .95rem;border-bottom:1px solid #f4e7d3;
+}
+.ns-sug-row:last-child{border-bottom:none;}
+.ns-sug-num{
+  width:20px;height:20px;border-radius:6px;background:#f9ddb2;color:#9a5809;font-size:.72rem;font-weight:800;
+  display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;
+}
+.ns-sug-text{font-size:.88rem;line-height:1.58;color:#7a4b16;}
+.ns-sug-text.urdu{font-family:var(--font-urdu);direction:rtl;text-align:right;line-height:2;font-size:.95rem;}
+
+.ns-footer{
+  margin-top:1.4rem;border-top:1px solid var(--border);padding-top:1rem;
+  font-size:.74rem;color:var(--text-muted);line-height:1.7;text-align:center;
+}
+
+@media (max-width:560px){
+  .ns-shell{padding:1.8rem .8rem 3.2rem;}
+  .ns-hero{padding:1.5rem 1rem 1.3rem;}
+  .ns-mode-grid{grid-template-columns:1fr;}
+  .ns-risk{flex-direction:column;}
+  .ns-metric{align-items:flex-start;}
 }
 </style>
 """
@@ -201,7 +370,7 @@ SAMPLE_IMAGE_FILES = {
 
 SYSTEM_PROMPT_TEMPLATE = """You are an expert linguist specialising in Urdu dyslexia screening.
 
-Analyse the writing sample below and respond with STRICT JSON ONLY â€” no preamble, no markdown fences.
+Analyse the writing sample below and respond with STRICT JSON ONLY — no preamble, no markdown fences.
 
 Writing sample:
 \"\"\"{user_input}\"\"\"
@@ -212,7 +381,7 @@ Rules:
 3. Give exactly 3 concrete, numbered recommendations.
 4. For Urdu text: list up to 3 specific error words with their corrections.
    For English text: same approach, or return an empty corrections list.
-5. Pick a clear risk level â€” do not hedge.
+5. Pick a clear risk level — do not hedge.
 
 Return exactly this JSON shape and nothing else:
 {{
@@ -221,8 +390,8 @@ Return exactly this JSON shape and nothing else:
   "main_insight": "One decisive 2-sentence diagnostic finding a teacher can act on.",
   "detected_patterns": ["most severe pattern", "second pattern", "third pattern"],
   "corrections": [
-    {{"error": "Ù¾Ø³Ù†", "correct": "Ù¾Ø³Ù†Ø¯", "note": "missing â€ŒØ¯"}},
-    {{"error": "Ø³Ø§Øª", "correct": "Ø³Ø§ØªÚ¾", "note": "missing Ú¾"}}
+    {{"error": "پسن", "correct": "پسند", "note": "missing ‌د"}},
+    {{"error": "سات", "correct": "ساتھ", "note": "missing ھ"}}
   ],
   "suggestions": ["suggestion 1", "suggestion 2", "suggestion 3"]
 }}
@@ -230,7 +399,7 @@ Return exactly this JSON shape and nothing else:
 
 VISION_PROMPT_TEMPLATE = """You are an expert in Urdu handwriting analysis and dyslexia screening.
 
-Analyse the uploaded handwriting image and respond with STRICT JSON ONLY â€” no preamble, no markdown fences.
+Analyse the uploaded handwriting image and respond with STRICT JSON ONLY — no preamble, no markdown fences.
 
 Rules:
 1. Identify up to 3 handwriting patterns MAXIMUM, ranked by severity.
@@ -277,8 +446,8 @@ MOCK_RESULT = {
         "Word spacing irregularity",
     ],
     "corrections": [
-        {"error": "Ù¾Ø³Ù†", "correct": "Ù¾Ø³Ù†Ø¯", "note": "missing Ø¯"},
-        {"error": "Ø³Ø§Øª", "correct": "Ø³Ø§ØªÚ¾", "note": "missing Ú¾"},
+        {"error": "پسن", "correct": "پسند", "note": "missing د"},
+        {"error": "سات", "correct": "ساتھ", "note": "missing ھ"},
     ],
     "suggestions": [
         "Use guided reading practice daily",
@@ -456,7 +625,7 @@ def hl_text(original: str, corrections: List[Dict[str, str]]) -> str:
     highlighted = original
     for c in corrections:
         err = re.escape(c["error"])
-        tip = f"âœ“ {c['correct']}" + (f" â€” {c['note']}" if c.get("note") else "")
+        tip = f"✓ {c['correct']}" + (f" — {c['note']}" if c.get("note") else "")
         span = (
             f"<span class='ns-hl'>{c['error']}"
             f"<span class='ns-tt'>{tip}</span></span>"
@@ -473,7 +642,7 @@ def corr_rows(corrections: List[Dict[str, str]]) -> str:
         rows += (
             f"<div class='ns-corr-pair'>"
             f"<span class='ns-corr-wrong'>{c['error']}</span>"
-            f"<span class='ns-corr-arrow'>â†’</span>"
+            f"<span class='ns-corr-arrow'>→</span>"
             f"<span class='ns-corr-right'>{c['correct']}</span>"
             f"</div>"
         )
@@ -520,7 +689,7 @@ def render_results(result: Dict[str, Any], original_text: str, urdu_mode: bool) 
         f"""
 <div class='ns-step'>
   <div class='ns-card'>
-    <div class='ns-card-head'>Step 2 Â· AI Insight</div>
+    <div class='ns-card-head'>Step 2 · AI Insight</div>
     <div class='ns-card-body'>
       <div class='{insight_cls}'>{insight}</div>
     </div>
@@ -534,7 +703,7 @@ def render_results(result: Dict[str, Any], original_text: str, urdu_mode: bool) 
         f"""
 <div class='ns-step'>
   <div class='ns-card'>
-    <div class='ns-card-head'>Step 3 Â· Patterns ({len(patterns)}/3)</div>
+    <div class='ns-card-head'>Step 3 · Patterns ({len(patterns)}/3)</div>
     <div class='ns-card-body'>
 """,
         unsafe_allow_html=True,
@@ -561,7 +730,7 @@ def render_results(result: Dict[str, Any], original_text: str, urdu_mode: bool) 
             )
     else:
         st.markdown(
-            "<div class='ns-row'><div class='ns-idx'>â€”</div><div>No strong repetitive patterns detected.</div></div>",
+            "<div class='ns-row'><div class='ns-idx'>—</div><div>No strong repetitive patterns detected.</div></div>",
             unsafe_allow_html=True,
         )
 
@@ -571,7 +740,7 @@ def render_results(result: Dict[str, Any], original_text: str, urdu_mode: bool) 
         """
 <div class='ns-step'>
   <div class='ns-suggest'>
-    <div class='ns-card-head' style='border-bottom:1px solid #f4e7d3;'>Step 4 Â· Suggestions</div>
+    <div class='ns-card-head' style='border-bottom:1px solid #f4e7d3;'>Step 4 · Suggestions</div>
 """,
         unsafe_allow_html=True,
     )
@@ -593,8 +762,8 @@ def render_results(result: Dict[str, Any], original_text: str, urdu_mode: bool) 
 
     st.markdown(
         "<div class='ns-footer'>"
-        "Screening support only Â· Not a clinical diagnosis Â· Consult a qualified educational psychologist for formal evaluation<br>"
-        "<strong>NastaliqScan</strong> Â· AI Seekho Project"
+        "Screening support only · Not a clinical diagnosis · Consult a qualified educational psychologist for formal evaluation<br>"
+        "<strong>NastaliqScan</strong> · AI Seekho Project"
         "</div>",
         unsafe_allow_html=True,
     )
@@ -606,9 +775,9 @@ def main() -> None:
     st.markdown(
         """
 <div class='ns-hero'>
-  <div class='ns-eyebrow'>ðŸ”¬ AI Seekho Â· Early Screening</div>
+  <div class='ns-eyebrow'>🔬 AI Seekho · Early Screening</div>
   <div class='ns-title'>Nastaliq<em>Scan</em></div>
-  <div class='ns-urdu'>Ø§Ø±Ø¯Ùˆ Ø§ÙˆØ± Ø§Ù†Ú¯Ù„Ø´ ØªØ­Ø±ÛŒØ± Ú©Ø§ Ø°ÛÛŒÙ† ØªØ¬Ø²ÛŒÛ</div>
+  <div class='ns-urdu'>اردو اور انگلش تحریر کا ذہین تجزیہ</div>
   <p class='ns-sub'>
     A focused AI screener for early dyslexia indicators in Urdu and English writing,
     designed for fast classroom and parent support workflows.
@@ -621,7 +790,7 @@ def main() -> None:
   </div>
 </div>
 <div class='ns-disclaimer'>
-  âš  <strong>Not a medical diagnosis tool.</strong> Results are for early screening support only.
+  ⚠ <strong>Not a medical diagnosis tool.</strong> Results are for early screening support only.
 </div>
 """,
         unsafe_allow_html=True,
@@ -648,12 +817,12 @@ def main() -> None:
 
     mode = st.radio(
         "Mode",
-        ["âœï¸ Text Analysis", "ðŸ“· Handwriting Scan"],
+        ["✍️ Text Analysis", "📷 Handwriting Scan"],
         horizontal=True,
         label_visibility="collapsed",
         key="mode_radio",
     )
-    is_text = mode.startswith("âœï¸")
+    is_text = mode.startswith("✍️")
 
     text_active = "active" if is_text else ""
     image_active = "active" if not is_text else ""
@@ -661,11 +830,11 @@ def main() -> None:
         f"""
 <div class='ns-mode-grid'>
   <div class='ns-mode-card {text_active}'>
-    <div class='ns-mode-title'>âœï¸ Text Analysis</div>
+    <div class='ns-mode-title'>✍️ Text Analysis</div>
     <div class='ns-mode-desc'>Paste Urdu/English writing for language-level pattern analysis.</div>
   </div>
   <div class='ns-mode-card {image_active}'>
-    <div class='ns-mode-title'>ðŸ“· Handwriting Scan</div>
+    <div class='ns-mode-title'>📷 Handwriting Scan</div>
     <div class='ns-mode-desc'>Upload handwriting to evaluate visual consistency signals.</div>
   </div>
 </div>
@@ -700,14 +869,14 @@ def main() -> None:
         with col_s:
             st.markdown("<div class='ns-ghost'>", unsafe_allow_html=True)
             if st.button("Try sample", key="sample_btn"):
-                st.session_state.user_input = "Ù…Ø¬ Ø§Ø³Ú©ÙˆÙ„ Ø¬Ø§Ù†Ø§ Ù¾Ø³Ù† ÛÛ’Û” Ù…ÛŒÚº Ø±ÙˆØ² Ø¯ÙˆØ³ØªÙˆÚº Ú©Û’ Ø³Ø§Øª Ú©Ù„ØªØ§ ÛÙˆÚº"
+                st.session_state.user_input = "مج اسکول جانا پسن ہے۔ میں روز دوستوں کے سات کلتا ہوں"
                 st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
 
         user_input = st.text_area(
             "Writing sample input",
             height=160,
-            placeholder="Urdu: Ù…Ø¬Ú¾Û’ Ø§Ø³Ú©ÙˆÙ„ Ø¬Ø§Ù†Ø§ Ù¾Ø³Ù†Ø¯ ÛÛ’...\n\nEnglish: I like to go to school every day...",
+            placeholder="Urdu: مجھے اسکول جانا پسند ہے...\n\nEnglish: I like to go to school every day...",
             key="user_input",
             label_visibility="collapsed",
         )
@@ -730,7 +899,7 @@ def main() -> None:
 <div class='ns-panel'>
   <div class='ns-panel-head'>
     <div class='ns-panel-title'><span class='ns-dot'></span>Handwriting Image</div>
-    <div class='ns-panel-meta'>JPG Â· JPEG Â· JFIF Â· PNG</div>
+    <div class='ns-panel-meta'>JPG · JPEG · JFIF · PNG</div>
   </div>
   <div class='ns-panel-body'>
 """,
@@ -756,7 +925,7 @@ def main() -> None:
             if sp and sp.exists():
                 st.image(str(sp), caption=sp.name, width="stretch")
             else:
-                st.info("Sample unavailable â€” upload an image below.")
+                st.info("Sample unavailable — upload an image below.")
 
         uploaded_file = st.file_uploader(
             "Upload handwriting",
@@ -789,7 +958,7 @@ def main() -> None:
                 st.warning("Please enter at least 25 characters for a reliable result.")
                 st.markdown("</div>", unsafe_allow_html=True)
                 return
-            with st.spinner("Analysing writing patternsâ€¦"):
+            with st.spinner("Analysing writing patterns…"):
                 try:
                     result = run_analysis_with_safety(mode="text", text_input=cleaned)
                     st.session_state.analysis_result = result
@@ -800,7 +969,7 @@ def main() -> None:
                     st.markdown("</div>", unsafe_allow_html=True)
                     return
                 except (json.JSONDecodeError, ValueError):
-                    st.error("Could not parse a result â€” try a longer or clearer sample.")
+                    st.error("Could not parse a result — try a longer or clearer sample.")
                     st.markdown("</div>", unsafe_allow_html=True)
                     return
                 except Exception as e:
@@ -839,7 +1008,7 @@ def main() -> None:
                 st.stop()
             st.session_state.last_run = image_run_key
 
-            with st.spinner("Analysing handwritingâ€¦"):
+            with st.spinner("Analysing handwriting…"):
                 try:
                     result = run_analysis_with_safety(
                         mode="image",
@@ -854,7 +1023,7 @@ def main() -> None:
                     st.markdown("</div>", unsafe_allow_html=True)
                     return
                 except (json.JSONDecodeError, ValueError):
-                    st.error("Could not parse a result â€” try a clearer image.")
+                    st.error("Could not parse a result — try a clearer image.")
                     st.markdown("</div>", unsafe_allow_html=True)
                     return
                 except Exception as e:
@@ -874,4 +1043,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    main() 
