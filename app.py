@@ -1,6 +1,8 @@
-﻿import json
+import json
 import os
-from typing import Any, Dict, List
+import re  # ADDED: Urdu detection helper
+from pathlib import Path  # ADDED: local sample image paths
+from typing import Any, Dict
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -52,10 +54,42 @@ html, body, [class*="css"]  {
     background: #fee2e2;
     border: 1px solid #fca5a5;
 }
+
+/* ADDED: confidence badge styles */
+.confidence-box {
+    border-radius: 12px;
+    padding: 10px 14px;
+    color: #111827;
+    font-weight: 600;
+    margin-bottom: 12px;
+    display: inline-block;
+}
+
+.confidence-low {
+    background: #fee2e2;
+    border: 1px solid #fca5a5;
+}
+
+.confidence-medium {
+    background: #fef9c3;
+    border: 1px solid #fde047;
+}
+
+.confidence-high {
+    background: #dcfce7;
+    border: 1px solid #86efac;
+}
 </style>
 """
 
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+
+# ADDED: bundled sample handwriting images for demo mode.
+SAMPLE_IMAGE_FILES = {
+    "Urdu Sample 1 (urdu1.jfif)": Path("samples/urdu1.jfif"),
+    "Urdu Sample 2 (urdu2.jpg)": Path("samples/urdu2.jpg"),
+    "English Sample (english1.jfif)": Path("samples/english1.jfif"),
+}
 
 SYSTEM_PROMPT_TEMPLATE = """SYSTEM ROLE:
 You are an expert in linguistics, Urdu language processing, and learning disorders, specifically dyslexia detection.
@@ -85,10 +119,16 @@ INSTRUCTIONS:
    - MODERATE
    - HIGH
 
-4. Return STRICT JSON ONLY in this format:
+4. Add confidence based on strength and consistency of detected patterns:
+   - LOW
+   - MEDIUM
+   - HIGH
+
+5. Return STRICT JSON ONLY in this format:
 
 {
   "risk_level": "LOW | MODERATE | HIGH",
+  "confidence": "LOW | MEDIUM | HIGH",
   "detected_patterns": [
     "pattern 1",
     "pattern 2"
@@ -100,12 +140,12 @@ INSTRUCTIONS:
   ]
 }
 
-5. Keep explanations simple and non-technical.
+6. Keep explanations simple and non-technical.
 
-6. Do NOT include any text outside JSON.
+7. Do NOT include any text outside JSON.
 """
 
-# ADDED: Vision prompt for handwriting image analysis mode.
+# IMPROVED: Vision prompt quality + confidence output.
 VISION_PROMPT_TEMPLATE = """SYSTEM ROLE:
 You are an expert in Urdu handwriting analysis and learning disorders such as dyslexia.
 
@@ -124,15 +164,27 @@ INSTRUCTIONS:
 2. Do NOT assume dyslexia from a single issue.
    Only flag patterns if they appear repeatedly.
 
-3. Classify risk into:
+3. Mention specific Urdu letters if possible (e.g., reversed ب or incorrectly formed ت).
+
+4. Avoid generic statements like "some inconsistencies detected".
+
+5. Be specific and evidence-based in observations.
+
+6. Classify risk into:
    - LOW
    - MODERATE
    - HIGH
 
-4. Return STRICT JSON ONLY:
+7. Add confidence based on strength and consistency of detected patterns:
+   - LOW
+   - MEDIUM
+   - HIGH
+
+8. Return STRICT JSON ONLY:
 
 {
   "risk_level": "LOW | MODERATE | HIGH",
+  "confidence": "LOW | MEDIUM | HIGH",
   "detected_patterns": [
     "pattern 1",
     "pattern 2"
@@ -143,9 +195,9 @@ INSTRUCTIONS:
   ]
 }
 
-5. Keep explanation simple and non-medical.
+9. Keep explanation simple and non-medical.
 
-6. Do NOT include any text outside JSON.
+10. Do NOT include any text outside JSON.
 """
 
 
@@ -171,6 +223,11 @@ def normalize_result(data: Dict[str, Any]) -> Dict[str, Any]:
     if risk not in {"LOW", "MODERATE", "HIGH"}:
         risk = "MODERATE"
 
+    # ADDED: confidence normalization.
+    confidence = str(data.get("confidence", "")).upper().strip()
+    if confidence not in {"LOW", "MEDIUM", "HIGH"}:
+        confidence = "MEDIUM"
+
     patterns = data.get("detected_patterns", [])
     if not isinstance(patterns, list):
         patterns = []
@@ -185,6 +242,7 @@ def normalize_result(data: Dict[str, Any]) -> Dict[str, Any]:
 
     return {
         "risk_level": risk,
+        "confidence": confidence,
         "detected_patterns": patterns,
         "explanation": explanation,
         "suggestions": suggestions,
@@ -212,8 +270,9 @@ def call_gemini(user_input: str) -> Dict[str, Any]:
     parsed = extract_json_safely(response.text)
     return normalize_result(parsed)
 
-# ADDED: New Gemini Vision function for handwriting image analysis.
-def call_gemini_vision(image_bytes: bytes) -> Dict[str, Any]:
+
+# IMPROVED: Vision call now accepts real detected mime type.
+def call_gemini_vision(image_bytes: bytes, mime_type: str) -> Dict[str, Any]:
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is missing. Add it to your environment or .env file.")
@@ -224,7 +283,7 @@ def call_gemini_vision(image_bytes: bytes) -> Dict[str, Any]:
         model="gemini-2.5-flash",
         contents=[
             types.Part.from_text(text=VISION_PROMPT_TEMPLATE),
-            types.Part.from_bytes(data=image_bytes, mime_type="image/png"),
+            types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
         ],
         config=types.GenerateContentConfig(
             temperature=0.3,
@@ -249,6 +308,59 @@ def render_risk_level(risk_level: str) -> None:
     )
 
 
+# ADDED: confidence display.
+def render_confidence(confidence: str) -> None:
+    # IMPROVED: styled confidence badge with subtle explanatory help text.
+    css_class = {
+        "LOW": "confidence-low",
+        "MEDIUM": "confidence-medium",
+        "HIGH": "confidence-high",
+    }.get(confidence, "confidence-medium")
+    st.markdown(
+        f"<div class='confidence-box {css_class}'>Confidence: {confidence.title()}</div>",
+        unsafe_allow_html=True,
+    )
+    st.caption("Confidence indicates how strong and consistent the detected patterns are.")
+
+
+# ADDED: Urdu detection for RTL output styling.
+def contains_urdu(text: str) -> bool:
+    return bool(re.search(r"[\u0600-\u06FF]", text or ""))
+
+
+# ADDED: shared renderer for Urdu/English blocks.
+def render_text_block(text: str, urdu_mode: bool) -> None:
+    if urdu_mode and text:
+        st.markdown(f"<div class='urdu-text'>{text}</div>", unsafe_allow_html=True)
+    else:
+        st.write(text)
+
+
+# ADDED: why-this-matters text with fallback.
+def build_why_this_matters(result: Dict[str, Any]) -> str:
+    explanation = (result.get("explanation") or "").strip()
+    if explanation:
+        return (
+            f"{explanation} These patterns may affect reading fluency, spelling accuracy, "
+            "and writing consistency."
+        )
+    return "These patterns may affect reading fluency, spelling accuracy, and writing consistency."
+
+
+# IMPROVED: robust upload mime detection.
+def detect_image_mime(uploaded_file) -> str:
+    detected = (getattr(uploaded_file, "type", "") or "").lower().strip()
+    if detected in {"image/jpeg", "image/png"}:
+        return detected
+
+    name = (getattr(uploaded_file, "name", "") or "").lower()
+    if name.endswith(".jpg") or name.endswith(".jpeg") or name.endswith(".jfif"):
+        return "image/jpeg"
+    if name.endswith(".png"):
+        return "image/png"
+    return ""
+
+
 def main() -> None:
     st.title("🧠 Urdu Dyslexia Screener (AI Seekho Project)")
     st.markdown(
@@ -260,73 +372,154 @@ It is designed for **early screening support** only, not diagnosis.
 
     st.info("⚠️ This is NOT a medical diagnosis tool. Please consult a qualified professional.")
 
-    # ADDED: Input mode toggle for text vs handwriting image analysis.
+    # ADDED: state for sample input UX.
+    if "user_input" not in st.session_state:
+        st.session_state.user_input = ""
+    if "show_image_sample_hint" not in st.session_state:
+        st.session_state.show_image_sample_hint = False
+    if "selected_sample_label" not in st.session_state:
+        st.session_state.selected_sample_label = list(SAMPLE_IMAGE_FILES.keys())[0]
+
     mode = st.radio(
         "Choose analysis mode",
         ["Text Analysis", "Handwriting Image Analysis"],
         horizontal=True,
     )
 
-    user_input = ""
+    user_input = st.session_state.user_input
     uploaded_file = None
 
     if mode == "Text Analysis":
+        if st.button("Try Sample Input"):
+            # ADDED: demo-friendly sample with likely errors.
+            st.session_state.user_input = "مج اسکول جانا پسن ہے۔ میں روز دوستوں کے سات کلتا ہوں"
+
         user_input = st.text_area(
             "✍️ Enter Urdu or English writing sample",
             height=200,
             placeholder="Urdu: مجھے اسکول جانا پسند ہے...\n\nEnglish: I like to go to school...",
+            key="user_input",
         )
     else:
-        # ADDED: Image upload UI for handwriting analysis.
+        # ADDED: real sample image selector.
+        st.markdown("**Sample Handwriting Images**")
+        st.session_state.selected_sample_label = st.selectbox(
+            "Choose sample",
+            list(SAMPLE_IMAGE_FILES.keys()),
+            index=list(SAMPLE_IMAGE_FILES.keys()).index(st.session_state.selected_sample_label),
+        )
+
+        if st.button("Try Sample Input"):
+            st.session_state.show_image_sample_hint = True
+
+        if st.session_state.show_image_sample_hint:
+            sample_path = SAMPLE_IMAGE_FILES.get(st.session_state.selected_sample_label)
+            if sample_path and sample_path.exists():
+                st.image(str(sample_path), caption=f"Sample: {sample_path.name}", use_container_width=True)
+            else:
+                st.info("Sample image mode ready: upload a demo handwritten Urdu JPG/PNG/JFIF to continue.")
+
         uploaded_file = st.file_uploader(
             "📸 Upload handwritten Urdu sample image",
-            type=["jpg", "jpeg", "png"],
+            type=["jpg", "jpeg", "png", "jfif"],
         )
         if uploaded_file is not None:
             st.image(uploaded_file, caption="Uploaded handwriting sample", use_container_width=True)
 
     if st.button("Analyze Writing"):
-        # ADDED: Mode-specific input validation.
         if mode == "Text Analysis":
-            if not user_input.strip():
+            cleaned = user_input.strip()
+            if not cleaned:
                 st.warning("Please enter some text before analysis.")
                 return
+            # IMPROVED: minimum length guard for reliability.
+            if len(cleaned) < 25:
+                st.warning("Please enter a longer writing sample for accurate analysis.")
+                return
         else:
-            if uploaded_file is None:
+            image_bytes = b""
+            mime_type = ""
+
+            if uploaded_file is not None:
+                mime_type = detect_image_mime(uploaded_file)
+                if mime_type not in {"image/jpeg", "image/png"}:
+                    st.warning("Unsupported image type. Please upload a JPG, JPEG, JFIF, or PNG image.")
+                    return
+                image_bytes = uploaded_file.read()
+            elif st.session_state.show_image_sample_hint:
+                sample_path = SAMPLE_IMAGE_FILES.get(st.session_state.selected_sample_label)
+                if sample_path and sample_path.exists():
+                    image_bytes = sample_path.read_bytes()
+                    mime_type = "image/png" if sample_path.suffix.lower() == ".png" else "image/jpeg"
+                else:
+                    st.warning("Sample image could not be loaded. Please upload an image.")
+                    return
+            else:
                 st.warning("Please upload an image before analysis.")
                 return
 
-        with st.spinner("Analyzing writing patterns with Gemini..."):
+        # IMPROVED: mode-specific loading message.
+        spinner_text = "Analyzing text patterns..." if mode == "Text Analysis" else "Analyzing handwriting patterns..."
+
+        with st.spinner(spinner_text):
             try:
-                # ADDED: Mode-specific Gemini call routing.
                 if mode == "Text Analysis":
                     result = call_gemini(user_input)
                 else:
-                    image_bytes = uploaded_file.read()
-                    result = call_gemini_vision(image_bytes)
+                    if not image_bytes:
+                        st.warning("Uploaded image appears empty. Please try another file.")
+                        return
+                    result = call_gemini_vision(image_bytes, mime_type)
             except json.JSONDecodeError:
-                st.error("Model response format was invalid. Please try again.")
+                # IMPROVED: user-friendly empty/invalid response messaging.
+                st.error("No analysis could be generated. Try a clearer sample.")
+                return
+            except ValueError:
+                # IMPROVED: explicit handling for empty model responses.
+                st.error("No analysis could be generated. Try a clearer sample.")
                 return
             except Exception as exc:
-                st.error(f"Analysis failed: {exc}")
+                # IMPROVED: user-friendly API failure message.
+                st.error("Analysis temporarily unavailable. Please try again.")
                 return
 
-        render_risk_level(result["risk_level"])
+        # ADDED: compact summary block for demo impact.
+        st.subheader("📌 Summary")
+        st.write(f"{result['risk_level'].title()} risk detected with {result.get('confidence', 'MEDIUM').lower()} confidence.")
 
-        st.subheader("Detected Patterns")
+        render_risk_level(result["risk_level"])
+        # ADDED: confidence under risk level.
+        render_confidence(result.get("confidence", "MEDIUM"))
+
+        urdu_mode = mode == "Text Analysis" and contains_urdu(user_input)
+
+        # IMPROVED: emoji headings.
+        st.subheader("🔍 Detected Patterns")
         if result["detected_patterns"]:
             for pattern in result["detected_patterns"]:
-                st.markdown(f"- {pattern}")
+                if urdu_mode:
+                    # IMPROVED: consistent Urdu RTL rendering for patterns.
+                    st.markdown(f"<div class='urdu-text'>• {pattern}</div>", unsafe_allow_html=True)
+                else:
+                    st.markdown(f"- {pattern}")
         else:
             st.write("No strong repetitive patterns detected in the provided sample.")
 
-        st.subheader("Explanation")
-        st.write(result["explanation"] or "No explanation returned.")
+        st.subheader("🧠 Explanation")
+        render_text_block(result["explanation"] or "No explanation returned.", urdu_mode)
 
-        st.subheader("Suggestions")
+        # ADDED: why this matters section.
+        st.subheader("👉 Why this matters")
+        render_text_block(build_why_this_matters(result), urdu_mode)
+
+        st.subheader("💡 Suggestions")
         if result["suggestions"]:
             for suggestion in result["suggestions"]:
-                st.markdown(f"- {suggestion}")
+                if urdu_mode:
+                    # IMPROVED: consistent Urdu RTL rendering for suggestions.
+                    st.markdown(f"<div class='urdu-text'>• {suggestion}</div>", unsafe_allow_html=True)
+                else:
+                    st.markdown(f"- {suggestion}")
         else:
             st.write("Consider regular reading and guided writing practice with teacher support.")
 
