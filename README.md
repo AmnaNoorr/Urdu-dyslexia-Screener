@@ -191,9 +191,6 @@ Please consult qualified professionals (educational psychologists, speech-langua
 
 ---
 
-## 📝 License
-
-This project is open-source and available under the MIT License.
 
 ---
 
@@ -210,8 +207,7 @@ We welcome contributions! Please feel free to:
 ## 📧 Contact & Support
 
 For questions, feedback, or support, please contact:
-- **Email**: [your-email@example.com]
-- **GitHub Issues**: [Link to issues page]
+- **Email**: [amnanoor0179@gmail.com]
 
 ---
 
