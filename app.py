@@ -17,6 +17,13 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+from reportlab.pdfbase.ttfonts import TTFont
+from io import BytesIO
+
 load_dotenv()
 
 st.set_page_config(
@@ -173,7 +180,7 @@ div[data-testid="stRadio"] > div > label{
 div[data-testid="stRadio"] > div > label:has(input:checked){
   border-color:var(--amber-500) !important; background:#fff8ef !important;
 }
-div[data-testid="stRadio"] > div > label p{font-size:.8rem !important; font-weight:600 !important;}
+div[data-testid="stRadio"] > div > label p{font-size:.8rem !important; font-weight:600 !important; color:var(--navy-900) !important;}
 
 .ns-panel{
   border:1px solid var(--border);border-radius:var(--radius-lg);
@@ -257,6 +264,9 @@ div[data-testid="stRadio"] > div > label p{font-size:.8rem !important; font-weig
   font-family:var(--font-display);font-size:clamp(1.65rem,3.6vw,2.3rem);
   line-height:1.1;margin-top:.18rem;
 }
+.ns-risk-title.LOW { color: #059669; }
+.ns-risk-title.MODERATE { color: #D97706; }
+.ns-risk-title.HIGH { color: #DC2626; }
 .ns-risk-sub{font-size:.82rem;color:var(--text-secondary);margin-top:.35rem;line-height:1.45;}
 
 .ns-metric{min-width:125px;display:flex;flex-direction:column;align-items:flex-end;gap:6px;}
@@ -336,11 +346,21 @@ div[data-testid="stRadio"] > div > label p{font-size:.8rem !important; font-weig
 }
 .ns-row:last-child{border-bottom:none;}
 .ns-row div:last-child {
-  color: var(--text-primary) !important;
+  color: #ffffff !important;
 }
 .ns-idx{
-  width:20px;height:20px;border-radius:6px;background:#ece8e2;color:#4b5563;font-size:.68rem;font-weight:800;
-  display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;
+  width:20px;
+  height:20px;
+  border-radius:6px;
+  background:#0f172a;
+  color:#ffffff;
+  font-size:.68rem;
+  font-weight:800;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  flex-shrink:0;
+  margin-top:1px;
 }
 .urdu-block{font-family:var(--font-urdu);direction:rtl;text-align:right;line-height:2;font-size:.96rem;color:var(--text-primary);}
 
@@ -765,47 +785,40 @@ def _pdf_escape(text: str) -> str:
 
 
 def generate_simple_pdf(report_lines: List[str]) -> bytes:
-    # Minimal single-page PDF generator (no external dependency).
-    lines = [line[:110] for line in report_lines[:42]]
-    stream_ops = ["BT", "/F1 10 Tf", "50 790 Td", "14 TL"]
-    first = True
-    for line in lines:
-        esc = _pdf_escape(line)
-        if first:
-            stream_ops.append(f"({esc}) Tj")
-            first = False
+    import arabic_reshaper
+    from bidi.algorithm import get_display
+
+    buffer = BytesIO()
+    # Register fonts
+    pdfmetrics.registerFont(TTFont('Urdu', 'fonts/NotoNastaliqUrdu-Regular.ttf'))
+    pdfmetrics.registerFont(UnicodeCIDFont('HYSMyeongJo-Medium'))  # fallback
+    doc = SimpleDocTemplate(buffer)
+    styles = getSampleStyleSheet()
+    story = []
+    
+    # Configure reshaper for Urdu
+    configuration = {
+        'language': 'Urdu'
+    }
+    reshaper = arabic_reshaper.ArabicReshaper(configuration=configuration)
+
+    for line in report_lines:
+        # Detect Urdu
+        if any('\u0600' <= ch <= '\u06FF' for ch in line):
+            reshaped_text = reshaper.reshape(line)
+            bidi_text = get_display(reshaped_text)
+            
+            style = styles["Normal"].clone('urdu_style')
+            style.fontName = 'Urdu'
+            style.fontSize = 12
+            style.leading = 16
+            story.append(Paragraph(bidi_text, style))
         else:
-            stream_ops.append("T*")
-            stream_ops.append(f"({esc}) Tj")
-    stream_ops.append("ET")
-    stream = "\n".join(stream_ops).encode("latin-1", errors="replace")
-
-    objects = []
-    objects.append(b"1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n")
-    objects.append(b"2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n")
-    objects.append(
-        b"3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
-        b"/Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj\n"
-    )
-    objects.append(
-        b"4 0 obj << /Length " + str(len(stream)).encode() + b" >> stream\n" + stream + b"\nendstream endobj\n"
-    )
-    objects.append(b"5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\n")
-
-    header = b"%PDF-1.4\n"
-    body = b""
-    offsets = [0]
-    cursor = len(header)
-    for obj in objects:
-        offsets.append(cursor)
-        body += obj
-        cursor += len(obj)
-    xref_pos = len(header) + len(body)
-    xref = [b"xref\n0 6\n", b"0000000000 65535 f \n"]
-    for i in range(1, 6):
-        xref.append(f"{offsets[i]:010d} 00000 n \n".encode())
-    trailer = b"trailer << /Size 6 /Root 1 0 R >>\nstartxref\n" + str(xref_pos).encode() + b"\n%%EOF"
-    return header + body + b"".join(xref) + trailer
+            style = styles["Normal"]
+            story.append(Paragraph(line, style))
+        story.append(Spacer(1, 8))
+    doc.build(story)
+    return buffer.getvalue()
 
 
 def render_results(result: Dict[str, Any], original_text: str, urdu_mode: bool) -> None:
@@ -829,7 +842,7 @@ def render_results(result: Dict[str, Any], original_text: str, urdu_mode: bool) 
   <div class='ns-risk {risk}'>
     <div>
       <div class='ns-risk-kicker {risk}'>{eyebrow}</div>
-      <div class='ns-risk-title'>{headline}</div>
+      <div class='ns-risk-title {risk}'>{headline}</div>
       <div class='ns-risk-sub'>{sublabel}</div>
     </div>
     <div class='ns-metric'>
@@ -990,7 +1003,7 @@ def main() -> None:
     )
 
     st.markdown("<div class='ns-quick-export'><div class='ns-quick-export-title'>Quick Export</div>", unsafe_allow_html=True)
-    top_c1, top_c2, top_c3 = st.columns(3)
+    top_c1, top_c2 = st.columns(2)
     has_result = bool(st.session_state.get("analysis_result"))
     if has_result:
         top_mode = "Text" if st.session_state.get("analysis_urdu") else "Handwriting"
@@ -1029,7 +1042,7 @@ def main() -> None:
             data=top_payload_json.encode("utf-8"),
             file_name=f"nastaliqscan_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
             mime="application/json",
-            width="stretch",
+            use_container_width=True,
             disabled=not has_result,
         )
     with top_c2:
@@ -1038,12 +1051,9 @@ def main() -> None:
             data=top_pdf_bytes,
             file_name=f"nastaliqscan_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
             mime="application/pdf",
-            width="stretch",
+            use_container_width=True,
             disabled=not has_result,
         )
-    with top_c3:
-        if st.button("Copy LinkedIn Summary", width="stretch", disabled=not has_result):
-            st.session_state["linkedin_summary_text"] = build_linkedin_summary(st.session_state.analysis_result)
     st.markdown("</div>", unsafe_allow_html=True)
     if not has_result:
         st.caption("Run analysis to enable download")
@@ -1160,7 +1170,7 @@ def main() -> None:
         if st.session_state.show_image_sample_hint:
             sp = SAMPLE_IMAGE_FILES.get(st.session_state.selected_sample_label)
             if sp and sp.exists():
-                st.image(str(sp), caption=sp.name, width="stretch")
+                st.image(str(sp), caption=sp.name, use_container_width=True)
             else:
                 st.info("Sample unavailable — upload an image below.")
 
@@ -1170,7 +1180,7 @@ def main() -> None:
             label_visibility="collapsed",
         )
         if uploaded_file is not None:
-            st.image(uploaded_file, caption="Uploaded sample", width="stretch")
+            st.image(uploaded_file, caption="Uploaded sample", use_container_width=True)
 
         st.markdown("</div></div>", unsafe_allow_html=True)
         user_input = ""
@@ -1334,7 +1344,7 @@ def main() -> None:
                 data=payload_json.encode("utf-8"),
                 file_name=f"nastaliqscan_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
                 mime="application/json",
-                width="stretch",
+                use_container_width=True,
             )
         with c2:
             st.download_button(
@@ -1342,10 +1352,10 @@ def main() -> None:
                 data=pdf_bytes,
                 file_name=f"nastaliqscan_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
                 mime="application/pdf",
-                width="stretch",
+                use_container_width=True,
             )
         with c3:
-            if st.button("Copy LinkedIn Summary", key="linkedin_copy_bottom", width="stretch"):
+            if st.button("Copy LinkedIn Summary", key="linkedin_copy_bottom", use_container_width=True):
                 st.session_state["linkedin_summary_text"] = build_linkedin_summary(st.session_state.analysis_result)
 
         st.caption("Shareable Result")
