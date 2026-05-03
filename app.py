@@ -8,6 +8,7 @@ import os
 import re
 import time
 import hashlib
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -50,6 +51,9 @@ CSS = """
   --amber-500:#D97706;
   --amber-400:#F59E0B;
   --amber-100:#FEF3C7;
+  --amber-200:#FDE68A;
+  --blue-100:#DBEAFE;
+  --blue-700:#1D4ED8;
   --gold-600:#B45309;
 
   --text-primary:#1E1B16;
@@ -110,9 +114,13 @@ html,body{
 }
 .ns-pills{margin-top:.9rem;display:flex;flex-wrap:wrap;gap:7px;}
 .ns-pill{
-  font-size:.72rem;color:rgba(255,255,255,.9);
-  border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.07);
-  border-radius:999px;padding:3px 10px;
+  font-size:.72rem;
+  color:#E2E8F0;
+  border:1px solid rgba(148,163,184,.45);
+  background:rgba(15,23,42,.35);
+  border-radius:999px;
+  padding:4px 10px;
+  font-weight:600;
 }
 .ns-disclaimer{
   margin-top:.9rem;border:1px solid var(--amber-400);background:var(--amber-100);
@@ -185,8 +193,13 @@ div[data-testid="stRadio"] > div > label p{font-size:.8rem !important; font-weig
 .ns-count{font-size:.74rem;color:var(--text-muted);}
 .ns-count.active{color:var(--amber-500);font-weight:700;}
 .ns-urdu-badge{
-  font-size:.7rem;font-weight:700;color:var(--gold-600);
-  background:var(--amber-100);border:1px solid #f4d4a0;border-radius:999px;padding:3px 8px;
+  font-size:.7rem;
+  font-weight:700;
+  color:var(--blue-700);
+  background:var(--blue-100);
+  border:1px solid #BFDBFE;
+  border-radius:999px;
+  padding:3px 8px;
 }
 
 .stTextArea textarea{
@@ -256,9 +269,9 @@ div[data-testid="stRadio"] > div > label p{font-size:.8rem !important; font-weig
   font-size:.66rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
   padding:3px 9px;border-radius:999px;border:1px solid;
 }
-.ns-conf.LOW{background:#fee2e2;border-color:#fca5a5;color:#dc2626;}
-.ns-conf.MEDIUM{background:#fef3c7;border-color:#fcd34d;color:#b45309;}
-.ns-conf.HIGH{background:#d1fae5;border-color:#86efac;color:#059669;}
+.ns-conf.LOW{background:#FEE2E2;border-color:#FCA5A5;color:#B91C1C;}
+.ns-conf.MEDIUM{background:#FFFBEB;border-color:var(--amber-200);color:#92400E;}
+.ns-conf.HIGH{background:#DCFCE7;border-color:#86EFAC;color:#166534;}
 
 .ns-card{border:1px solid var(--border);border-radius:14px;background:var(--surface);box-shadow:var(--shadow-sm);}
 .ns-card-head{
@@ -350,12 +363,58 @@ div[data-testid="stRadio"] > div > label p{font-size:.8rem !important; font-weig
   font-size:.74rem;color:var(--text-muted);line-height:1.7;text-align:center;
 }
 
+.ns-why {
+  margin-top: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: .9rem 1rem;
+}
+.ns-why-title {
+  font-size: .78rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: .45rem;
+}
+.ns-why ul { margin: 0; padding-left: 1rem; }
+.ns-why li {
+  color: var(--text-secondary);
+  font-size: .86rem;
+  line-height: 1.55;
+  margin: .2rem 0;
+}
+
+.ns-quick-export {
+  margin-top: .9rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: .8rem .9rem;
+}
+.ns-quick-export-title {
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: .55rem;
+}
+.ns-results-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 1.1rem 0 .7rem 0;
+}
+
 @media (max-width:560px){
   .ns-shell{padding:1.8rem .8rem 3.2rem;}
   .ns-hero{padding:1.5rem 1rem 1.3rem;}
   .ns-mode-grid{grid-template-columns:1fr;}
   .ns-risk{flex-direction:column;}
   .ns-metric{align-items:flex-start;}
+  .ns-quick-export { padding: .75rem .75rem; }
+  .ns-why { padding: .8rem .8rem; }
 }
 </style>
 """
@@ -390,7 +449,7 @@ Return exactly this JSON shape and nothing else:
   "main_insight": "One decisive 2-sentence diagnostic finding a teacher can act on.",
   "detected_patterns": ["most severe pattern", "second pattern", "third pattern"],
   "corrections": [
-    {{"error": "پسن", "correct": "پسند", "note": "missing ‌د"}},
+    {{"error": "پسن", "correct": "پسند", "note": "missing د"}},
     {{"error": "سات", "correct": "ساتھ", "note": "missing ھ"}}
   ],
   "suggestions": ["suggestion 1", "suggestion 2", "suggestion 3"]
@@ -650,6 +709,105 @@ def corr_rows(corrections: List[Dict[str, str]]) -> str:
     return rows
 
 
+def build_report_payload(result: Dict[str, Any], mode: str, original_text: str) -> Dict[str, Any]:
+    return {
+        "app": "NastaliqScan",
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "mode": mode,
+        "risk_level": result.get("risk_level", "MODERATE"),
+        "confidence": result.get("confidence", "MEDIUM"),
+        "main_insight": result.get("main_insight", ""),
+        "detected_patterns": result.get("detected_patterns", []),
+        "corrections": result.get("corrections", []),
+        "suggestions": result.get("suggestions", []),
+        "input_excerpt": (original_text or "")[:300],
+        "disclaimer": "Screening support only. Not a clinical diagnosis.",
+    }
+
+
+def build_shareable_summary(result: Dict[str, Any], mode: str) -> str:
+    risk = result.get("risk_level", "MODERATE").title()
+    confidence = result.get("confidence", "MEDIUM").title()
+    insight = result.get("main_insight", "No insight available.")
+    patterns = result.get("detected_patterns", [])
+    top_patterns = ", ".join(patterns[:3]) if patterns else "No strong repetitive patterns detected"
+    return (
+        f"NastaliqScan Result ({mode})\n"
+        f"Risk: {risk}\n"
+        f"Confidence: {confidence}\n"
+        f"Insight: {insight}\n"
+        f"Patterns: {top_patterns}\n"
+        f"Disclaimer: Screening support only, not a clinical diagnosis."
+    )
+
+
+def build_linkedin_summary(result: Dict[str, Any]) -> str:
+    risk = result.get("risk_level", "MODERATE").title()
+    confidence = result.get("confidence", "MEDIUM").title()
+    insight = (result.get("main_insight") or "No insight available.").strip()
+    patterns = result.get("detected_patterns", [])[:2]
+    pattern_lines = "\n".join([f"- {p}" for p in patterns]) if patterns else "- No strong repetitive patterns detected"
+    return (
+        "NastaliqScan AI Screening Result\n"
+        f"Risk Level: {risk}\n"
+        f"Confidence: {confidence}\n\n"
+        "Key Insight:\n"
+        f"{insight}\n\n"
+        "Detected Patterns:\n"
+        f"{pattern_lines}\n\n"
+        "Why this matters: Early detection of dyslexia in Urdu is almost non-existent.\n\n"
+        "#AISeekho #BuildWithAI #EdTech #Pakistan"
+    )
+
+
+def _pdf_escape(text: str) -> str:
+    return text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+
+def generate_simple_pdf(report_lines: List[str]) -> bytes:
+    # Minimal single-page PDF generator (no external dependency).
+    lines = [line[:110] for line in report_lines[:42]]
+    stream_ops = ["BT", "/F1 10 Tf", "50 790 Td", "14 TL"]
+    first = True
+    for line in lines:
+        esc = _pdf_escape(line)
+        if first:
+            stream_ops.append(f"({esc}) Tj")
+            first = False
+        else:
+            stream_ops.append("T*")
+            stream_ops.append(f"({esc}) Tj")
+    stream_ops.append("ET")
+    stream = "\n".join(stream_ops).encode("latin-1", errors="replace")
+
+    objects = []
+    objects.append(b"1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n")
+    objects.append(b"2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n")
+    objects.append(
+        b"3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
+        b"/Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj\n"
+    )
+    objects.append(
+        b"4 0 obj << /Length " + str(len(stream)).encode() + b" >> stream\n" + stream + b"\nendstream endobj\n"
+    )
+    objects.append(b"5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\n")
+
+    header = b"%PDF-1.4\n"
+    body = b""
+    offsets = [0]
+    cursor = len(header)
+    for obj in objects:
+        offsets.append(cursor)
+        body += obj
+        cursor += len(obj)
+    xref_pos = len(header) + len(body)
+    xref = [b"xref\n0 6\n", b"0000000000 65535 f \n"]
+    for i in range(1, 6):
+        xref.append(f"{offsets[i]:010d} 00000 n \n".encode())
+    trailer = b"trailer << /Size 6 /Root 1 0 R >>\nstartxref\n" + str(xref_pos).encode() + b"\n%%EOF"
+    return header + body + b"".join(xref) + trailer
+
+
 def render_results(result: Dict[str, Any], original_text: str, urdu_mode: bool) -> None:
     risk = result["risk_level"]
     confidence = result.get("confidence", "MEDIUM")
@@ -676,7 +834,7 @@ def render_results(result: Dict[str, Any], original_text: str, urdu_mode: bool) 
     </div>
     <div class='ns-metric'>
       <div class='ns-meter'><div class='ns-fill {risk}'></div></div>
-      <div class='ns-conf {confidence}'>{confidence.title()} Confidence</div>
+      <div class='ns-conf {confidence}' title='Confidence reflects pattern consistency, not diagnosis certainty'>{confidence.title()} Confidence</div>
     </div>
   </div>
 </div>
@@ -808,10 +966,89 @@ def main() -> None:
         "last_api_call_ts": 0.0,
         "api_call_count": 0,
         "last_run": None,
+        "session_id": hashlib.sha256(str(time.time()).encode()).hexdigest()[:8],
+        "analysis_generated_at": "",
+        "linkedin_summary_text": "",
     }
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
+
+    st.markdown(
+        """
+<div class='ns-why'>
+  <div class='ns-why-title'>Why this matters</div>
+  <ul>
+    <li>Urdu dyslexia tools are almost non-existent</li>
+    <li>Early detection changes learning outcomes</li>
+    <li>Teachers lack fast screening tools</li>
+    <li>This tool gives instant structured feedback</li>
+  </ul>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("<div class='ns-quick-export'><div class='ns-quick-export-title'>Quick Export</div>", unsafe_allow_html=True)
+    top_c1, top_c2, top_c3 = st.columns(3)
+    has_result = bool(st.session_state.get("analysis_result"))
+    if has_result:
+        top_mode = "Text" if st.session_state.get("analysis_urdu") else "Handwriting"
+        top_payload = build_report_payload(
+            st.session_state.analysis_result,
+            mode=top_mode,
+            original_text=st.session_state.get("analysis_original", ""),
+        )
+        top_payload_json = json.dumps(top_payload, ensure_ascii=False, indent=2)
+        top_pdf_lines = [
+            "NastaliqScan Report",
+            f"Generated: {top_payload['generated_at']}",
+            f"Mode: {top_payload['mode']}",
+            f"Risk: {top_payload['risk_level']}",
+            f"Confidence: {top_payload['confidence']}",
+            "",
+            "Insight:",
+            top_payload.get("main_insight", ""),
+            "",
+            "Patterns:",
+        ] + [f"- {p}" for p in top_payload.get("detected_patterns", [])] + [
+            "",
+            "Suggestions:",
+        ] + [f"- {s}" for s in top_payload.get("suggestions", [])] + [
+            "",
+            "Disclaimer: Screening support only. Not a clinical diagnosis.",
+        ]
+        top_pdf_bytes = generate_simple_pdf(top_pdf_lines)
+    else:
+        top_payload_json = "{}"
+        top_pdf_bytes = b"%PDF-1.4\n%%EOF"
+
+    with top_c1:
+        st.download_button(
+            "Download JSON",
+            data=top_payload_json.encode("utf-8"),
+            file_name=f"nastaliqscan_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+            mime="application/json",
+            width="stretch",
+            disabled=not has_result,
+        )
+    with top_c2:
+        st.download_button(
+            "Download PDF",
+            data=top_pdf_bytes,
+            file_name=f"nastaliqscan_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+            mime="application/pdf",
+            width="stretch",
+            disabled=not has_result,
+        )
+    with top_c3:
+        if st.button("Copy LinkedIn Summary", width="stretch", disabled=not has_result):
+            st.session_state["linkedin_summary_text"] = build_linkedin_summary(st.session_state.analysis_result)
+    st.markdown("</div>", unsafe_allow_html=True)
+    if not has_result:
+        st.caption("Run analysis to enable download")
+    elif st.session_state.get("linkedin_summary_text"):
+        st.code(st.session_state["linkedin_summary_text"])
 
     st.markdown("<div class='ns-label'>Choose Analysis Mode</div>", unsafe_allow_html=True)
 
@@ -939,7 +1176,7 @@ def main() -> None:
         user_input = ""
 
     st.markdown("<div class='ns-cta'>", unsafe_allow_html=True)
-    run = st.button("Analyze Writing Sample", key="analyze_btn")
+    run = st.button("Run AI Screening", key="analyze_btn")
     st.markdown("</div>", unsafe_allow_html=True)
 
     if run:
@@ -958,24 +1195,32 @@ def main() -> None:
                 st.warning("Please enter at least 25 characters for a reliable result.")
                 st.markdown("</div>", unsafe_allow_html=True)
                 return
-            with st.spinner("Analysing writing patterns…"):
-                try:
-                    result = run_analysis_with_safety(mode="text", text_input=cleaned)
-                    st.session_state.analysis_result = result
-                    st.session_state.analysis_original = cleaned
-                    st.session_state.analysis_urdu = contains_urdu(cleaned)
-                except RuntimeError as e:
-                    st.error(str(e))
-                    st.markdown("</div>", unsafe_allow_html=True)
-                    return
-                except (json.JSONDecodeError, ValueError):
-                    st.error("Could not parse a result — try a longer or clearer sample.")
-                    st.markdown("</div>", unsafe_allow_html=True)
-                    return
-                except Exception as e:
-                    st.error(f"Analysis temporarily unavailable. Please try again. ({e})")
-                    st.markdown("</div>", unsafe_allow_html=True)
-                    return
+            status_slot = st.empty()
+            status_slot.info("Analyzing writing patterns...")
+            time.sleep(0.35)
+            status_slot.info("Detecting dyslexia signals...")
+            time.sleep(0.35)
+            status_slot.info("Generating structured report...")
+            try:
+                result = run_analysis_with_safety(mode="text", text_input=cleaned)
+                st.session_state.analysis_result = result
+                st.session_state.analysis_original = cleaned
+                st.session_state.analysis_urdu = contains_urdu(cleaned)
+                st.session_state.analysis_generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            except RuntimeError as e:
+                st.error(str(e))
+                st.markdown("</div>", unsafe_allow_html=True)
+                return
+            except (json.JSONDecodeError, ValueError):
+                st.error("Could not parse a result ? try a longer or clearer sample.")
+                st.markdown("</div>", unsafe_allow_html=True)
+                return
+            except Exception as e:
+                st.error(f"Analysis temporarily unavailable. Please try again. ({e})")
+                st.markdown("</div>", unsafe_allow_html=True)
+                return
+            finally:
+                status_slot.empty()
         else:
             if uploaded_file is not None:
                 mime_type = detect_image_mime(uploaded_file)
@@ -1008,36 +1253,103 @@ def main() -> None:
                 st.stop()
             st.session_state.last_run = image_run_key
 
-            with st.spinner("Analysing handwriting…"):
-                try:
-                    result = run_analysis_with_safety(
-                        mode="image",
-                        image_bytes=image_bytes,
-                        mime_type=mime_type,
-                    )
-                    st.session_state.analysis_result = result
-                    st.session_state.analysis_original = ""
-                    st.session_state.analysis_urdu = False
-                except RuntimeError as e:
-                    st.error(str(e))
-                    st.markdown("</div>", unsafe_allow_html=True)
-                    return
-                except (json.JSONDecodeError, ValueError):
-                    st.error("Could not parse a result — try a clearer image.")
-                    st.markdown("</div>", unsafe_allow_html=True)
-                    return
-                except Exception as e:
-                    st.error(f"Analysis temporarily unavailable. Please try again. ({e})")
-                    st.markdown("</div>", unsafe_allow_html=True)
-                    return
+            status_slot = st.empty()
+            status_slot.info("Analyzing writing patterns...")
+            time.sleep(0.35)
+            status_slot.info("Detecting dyslexia signals...")
+            time.sleep(0.35)
+            status_slot.info("Generating structured report...")
+            try:
+                result = run_analysis_with_safety(
+                    mode="image",
+                    image_bytes=image_bytes,
+                    mime_type=mime_type,
+                )
+                st.session_state.analysis_result = result
+                st.session_state.analysis_original = ""
+                st.session_state.analysis_urdu = False
+                st.session_state.analysis_generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            except RuntimeError as e:
+                st.error(str(e))
+                st.markdown("</div>", unsafe_allow_html=True)
+                return
+            except (json.JSONDecodeError, ValueError):
+                st.error("Could not parse a result ? try a clearer image.")
+                st.markdown("</div>", unsafe_allow_html=True)
+                return
+            except Exception as e:
+                st.error(f"Analysis temporarily unavailable. Please try again. ({e})")
+                st.markdown("</div>", unsafe_allow_html=True)
+                return
+            finally:
+                status_slot.empty()
 
     if st.session_state.analysis_result:
+        st.markdown("<div class='ns-results-divider'></div>", unsafe_allow_html=True)
         st.markdown("<div class='ns-report-label'>Analysis Report</div>", unsafe_allow_html=True)
+        st.caption(
+            f"Timestamp: {st.session_state.get('analysis_generated_at', 'N/A')}  |  "
+            f"Session ID: {st.session_state.get('session_id', 'unknown')}"
+        )
         render_results(
             st.session_state.analysis_result,
             original_text=st.session_state.analysis_original,
             urdu_mode=st.session_state.analysis_urdu,
         )
+
+        # Export / Share block (bottom duplicate)
+        current_mode = "Text" if st.session_state.analysis_original else "Handwriting"
+        payload = build_report_payload(
+            st.session_state.analysis_result,
+            mode=current_mode,
+            original_text=st.session_state.analysis_original,
+        )
+        payload_json = json.dumps(payload, ensure_ascii=False, indent=2)
+        share_text = build_shareable_summary(st.session_state.analysis_result, current_mode)
+        pdf_lines = [
+            "NastaliqScan Report",
+            f"Generated: {payload['generated_at']}",
+            f"Mode: {payload['mode']}",
+            f"Risk: {payload['risk_level']}",
+            f"Confidence: {payload['confidence']}",
+            "",
+            "Insight:",
+            payload.get("main_insight", ""),
+            "",
+            "Patterns:",
+        ] + [f"- {p}" for p in payload.get("detected_patterns", [])] + [
+            "",
+            "Suggestions:",
+        ] + [f"- {s}" for s in payload.get("suggestions", [])] + [
+            "",
+            "Disclaimer: Screening support only. Not a clinical diagnosis.",
+        ]
+        pdf_bytes = generate_simple_pdf(pdf_lines)
+
+        st.markdown("<div class='ns-label'>Export & Share</div>", unsafe_allow_html=True)
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.download_button(
+                "Download JSON Report",
+                data=payload_json.encode("utf-8"),
+                file_name=f"nastaliqscan_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                mime="application/json",
+                width="stretch",
+            )
+        with c2:
+            st.download_button(
+                "Download PDF Report",
+                data=pdf_bytes,
+                file_name=f"nastaliqscan_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                mime="application/pdf",
+                width="stretch",
+            )
+        with c3:
+            if st.button("Copy LinkedIn Summary", key="linkedin_copy_bottom", width="stretch"):
+                st.session_state["linkedin_summary_text"] = build_linkedin_summary(st.session_state.analysis_result)
+
+        st.caption("Shareable Result")
+        st.code(st.session_state.get("linkedin_summary_text") or share_text)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
