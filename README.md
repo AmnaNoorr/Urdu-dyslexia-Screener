@@ -136,12 +136,21 @@ Set these in the deployment command:
 
 ## 📸 Screenshots
 
-*Coming soon - Screenshots showing:*
-- Main interface with text input mode
-- Handwriting upload feature
-- Risk assessment results with error highlighting
-- PDF report generation
-- Mobile-responsive design
+- **Main interface with text input mode**
+  <img src="https://github.com/user-attachments/assets/c0099e8c-fcf5-4011-9cea-0cea772df7da" width="960" height="474" alt="Main interface">
+
+- **Handwriting upload feature**
+  <img src="https://github.com/user-attachments/assets/40332634-ffdd-4b74-a836-32d5f2d0799e" width="960" height="476" alt="Handwriting upload">
+
+- **Risk assessment results with error highlighting**
+  <img src="https://github.com/user-attachments/assets/cd5d79da-b2be-4221-9226-ce9993419689" width="960" height="474" alt="Risk assessment">
+
+- **PDF report generation**
+  <img src="https://github.com/user-attachments/assets/2172ca03-0b7c-49d9-9d9c-659d5b35fd6a" width="960" height="200" alt="PDF generation">
+
+- **Mobile-responsive design**
+  <img src="https://github.com/user-attachments/assets/a369f15f-6214-48f3-a5a9-35800fcbce61" width="350" height="428" alt="Mobile design">
+
 
 ---
 
